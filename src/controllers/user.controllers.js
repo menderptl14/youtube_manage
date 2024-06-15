@@ -1,5 +1,23 @@
 import mongoose from "mongoose";
 import { asyncHandler } from "../utils/asyncHandler";
+import {User} from "../models/user.model.js";
+
+const generateAccessTokenAndRefreshToken = async (userId) => {
+    try {
+        const user = await User.findById(userId)
+        const accessToken = user.generateAccessToken()
+        const refreshToken = user.generateRefreshToken()
+
+        user.accessToken = accessToken
+        user.refreshToken = refreshToken
+        await user.save({validBeforeSave :false})
+
+        return {accessToken , refreshToken}
+        
+    } catch (error) {
+        throw new ApiError(505,"Something went wrong on access and refresh token ")
+    }
+}
 
 const registerUser = asyncHandler( async (req, res) => {
 
@@ -73,4 +91,60 @@ const registerUser = asyncHandler( async (req, res) => {
     )
 
 } )
+
+const loginUser = asyncHandler(async(req,res) => {
+    try {
+        const {email,username,password} = req.body
+
+        if ([email || username].some((field) => field?.trim() === "")) {
+           throw new ApiError(404,"fields are required")
+        }
+
+        // find user in db
+        const user = await User.findOne({
+            $or : [{email},{username}]
+        }
+        )
+
+
+
+        if (!user) {
+            throw new ApiError(404,"fields are required")
+        }
+
+        // password check
+        const isPasswordValid = await user.isPasswordCorrect(password)
+
+        if (isPasswordValid) {
+            throw new ApiError(404,"Password doesn`t match")
+        }
+
+        // Access and refresh token
+        const {accessToken,refreshToken} = await generateAccessTokenAndRefreshToken(user._id)
+
+        const loggedInUser = await User.findById(user._id).select("-password",refreshToken)
+
+        // send cookie
+        const option = {
+            httpOnly : true,
+            secure : true
+        }
+
+        return res.status(200)
+        .cookie("accessToken", accessToken,option)
+        .cookie("refreshToken", refreshToken,option)
+        .json(
+            new ApiResponse(
+                200,
+                {
+                    user:loggedInUser,accessToken,refreshToken
+                },
+                "User logged in Successfully"
+            )
+        )
+
+    } catch (error) {
+        throw new ApiError(500,"Error in login page")
+    }
+})
 
