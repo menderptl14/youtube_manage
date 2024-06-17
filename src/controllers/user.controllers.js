@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { asyncHandler } from "../utils/asyncHandler";
 import {User} from "../models/user.model.js";
+import jwt from "jsonwebtoken"
 
 const generateAccessTokenAndRefreshToken = async (userId) => {
     try {
@@ -160,21 +161,68 @@ const logoutPage = asyncHandler(async(req,res) => {
             new:true
         }
     )
-
     const option = {
         httpOnly:true,
         secure :true
     }
-
     return res
     .status(200)
     .clearCookie("accessToken", option)
     .clearCookie("refreshToken",option)
-    .json(new ApiResponse(200, {}, "User logged out successfully"))
+    .json(new ApiResponse(200, {}, "User logged out successfully!!"))
 })
 
+
+const generateAndAccessToken = asyncHandler(async(req,res) => {
+    try {
+        // Get token by cookie
+        const incommingRefreshToken = await req.cookie.refreshToken || req.body.refreshToken
+
+        if (!incommingRefreshToken) {
+            throw new ApiError(401, "Unauthorised request")
+        }
+
+        const decodedToken =  jwt.verify(
+            incommingRefreshToken,
+            process.env.REFRESS_TOKEN_SECRET,
+        )
+
+        const user = await User.findById(decodedToken._id)
+
+        if (!user) {
+            throw new ApiError(401, "Invalid refresh token")
+        }
+
+        if (incommingRefreshToken !== user?._id) {
+            throw new ApiError(401, "Refresh token is expired")
+        }
+
+        const option = {
+            httpOnly:true,
+            secure:true,
+        }
+
+        const {accessToken,newRefreshToken} = await generateAccessTokenAndRefreshToken(user._id)
+
+        return res
+        .status(200)
+        .cookie("accessToken" , accessToken, option)
+        .cookie("refreshToken", newRefreshToken, option)
+        .json(
+            new ApiResponse(
+                200,
+                {accessToken, refreshToken:newRefreshToken},
+                "Access token refreshed"
+            )
+        )
+
+    } catch (error) {
+        
+    }
+})
 export {
     registerUser,
     loginUser,
     logoutPage,
+    generateAndAccessToken,
 }
