@@ -8,7 +8,5 @@ Project uses all standard practices like JWT, bcrypt, access tokens, refresh Tok
 
 ## Model view
 
-<p align="center">
-  <img src="./diagram-export-7-8-2024-10_10_18-PM.png" width="350" title="hover text">
-</p>
+![model](https://github.com/menderptl14/youtube_manage/blob/master/diagram-export-7-8-2024-9_38_49-PM.png?raw=true)
 
